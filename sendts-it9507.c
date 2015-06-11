@@ -342,6 +342,7 @@ static int it950x_wr_regs(struct it950x_dev *dev, uint16_t cpu, uint32_t reg, ui
 {
 	struct it950x_req req;
 	struct it950x_reply rep;
+	int i;
 
 	req.command = htobe16(cpu | Command_REG_DEMOD_WRITE);
 	req.length = 6 + num;
@@ -354,7 +355,7 @@ static int it950x_wr_regs(struct it950x_dev *dev, uint16_t cpu, uint32_t reg, ui
 	memcpy(&req.payload[6], values, num);
 
 	fprintf(stderr, "WriteRegs @%04x:", reg);
-	for (int i = 0; i < num; i++) fprintf(stderr, " %02x", values[i]);
+	for (i = 0; i < num; i++) fprintf(stderr, " %02x", values[i]);
 	fprintf(stderr, "\n");
 
 	return it9507_talk(dev, &req, &rep);
@@ -364,7 +365,7 @@ static int it950x_rd_regs(struct it950x_dev *dev, uint16_t cpu, uint32_t reg, ui
 {
 	struct it950x_req req;
 	struct it950x_reply rep;
-	int r;
+	int i, r;
 
 	req.command = htobe16(cpu | Command_REG_DEMOD_READ);
 	req.length = 6;
@@ -382,7 +383,7 @@ static int it950x_rd_regs(struct it950x_dev *dev, uint16_t cpu, uint32_t reg, ui
 	memcpy(values, rep.payload, num);
 
 	fprintf(stderr, "ReadRegs @%04x:", reg);
-	for (int i = 0; i < num; i++) fprintf(stderr, " %02x", values[i]);
+	for (i = 0; i < num; i++) fprintf(stderr, " %02x", values[i]);
 	fprintf(stderr, "\n");
 
 	return 0;
