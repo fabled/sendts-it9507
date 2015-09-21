@@ -17,16 +17,19 @@
  */
 
 // FIXME: reboot for devices that do not need firmware load on connect
-// FIXME: getopt handling
 // FIXME: open device by bus/port
 
 #include <stdio.h>
 #include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <endian.h>
+#include <getopt.h>
 
 #include <libusb.h>
+
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 #define DVB_OFDM_VERSION		0xff090800U
 #define DVB_LINK_VERSION		0xff270200U
@@ -1088,12 +1091,6 @@ static int it950x_set_ts_interface(struct it950x_dev *dev)
 	return dev->error;
 }
 
-static int abs(int a)
-{
-	if (a >= 0) return a;
-	return -a;
-}
-
 static int it950x_adjust_gain(struct it950x_dev *dev)
 {
 	int c1value = 0, c2value = 0, c3value = 0;
@@ -1326,10 +1323,82 @@ static int it950x_stream_data(struct it950x_dev *dev, int fd)
 	}
 }
 
-int main(void)
+struct map {
+	int value;
+	const char *str;
+};
+
+static struct map map_transmission_mode[] = {
+	{ IT950X_TRANSMISSION_MODE_2K, "2k" },
+	{ IT950X_TRANSMISSION_MODE_4K, "4k" },
+	{ IT950X_TRANSMISSION_MODE_8K, "8k" },
+};
+
+static struct map map_constellation[] = {
+	{ IT950X_CONSTELLATION_QPSK, "qpsk" },
+	{ IT950X_CONSTELLATION_QAM_16, "qam16" },
+	{ IT950X_CONSTELLATION_QAM_64, "qam64" },
+};
+
+static struct map map_guard_interval[] = {
+	{ IT950X_GUARD_INTERVAL_1_4, "1/4" },
+	{ IT950X_GUARD_INTERVAL_1_8, "1/8" },
+	{ IT950X_GUARD_INTERVAL_1_16, "1/16" },
+	{ IT950X_GUARD_INTERVAL_1_32, "1/32" },
+};
+
+static struct map map_fec[] = {
+	{ IT950X_FEC_1_2, "1/2" },
+	{ IT950X_FEC_2_3, "2/3" },
+	{ IT950X_FEC_3_4, "3/4" },
+	{ IT950X_FEC_5_6, "5/6" },
+	{ IT950X_FEC_7_8, "7/8" },
+};
+
+static int lookup_map(struct map *map, size_t n, const char *str)
 {
+	size_t i;
+	for (i = 0; i < n; i++)
+		if (strcmp(map[i].str, str) == 0)
+			return map[i].value;
+	return -1;
+}
+
+static int usage(void)
+{
+	fprintf(stderr,
+		"usage: sendts-it9507 [OPTIONS]\n"
+		"\n"
+		"  -g,--gain               Set gain\n"
+		"  -f,--frequency          Set frequency (in kHz)\n"
+		"  -c,--channel            Set frequency (as channel no#)\n"
+		"  -b,--bandwidth          Set bandwidth in Hz (1000 - 8000)\n"
+		"  -t,--transmission-mode  Set transmission mode (2k/4k/8k)\n"
+		"  -C,--constellation      Set constellation (qpsk/qam16/qam64)\n"
+		"  -G,--guard-interval     Set guard interval (1/4,1/8,1/16,1/32)\n"
+		"  -r,--code-rate          Set code rate (1/2,2/3,3/4,5/6,7/8)\n"
+		"  -i,--cell-id            Set cell id (number)\n"
+		"\n");
+	return 1;
+}
+
+int main(int argc, char **argv)
+{
+	static const struct option long_options[] = {
+		{ "help",		no_argument, NULL, 'h' },
+		{ "gain",		required_argument, NULL, 'g' },
+		{ "frequency",		required_argument, NULL, 'f' },
+		{ "channel",		required_argument, NULL, 'c' },
+		{ "bandwidth",		required_argument, NULL, 'b' },
+		{ "transmission-mode",	required_argument, NULL, 't' },
+		{ "constellation",	required_argument, NULL, 'C' },
+		{ "guard-interval",	required_argument, NULL, 'G' },
+		{ "code-rate",		required_argument, NULL, 'r' },
+		{ "cell-id",		required_argument, NULL, 'i' },
+	};
+	static const char short_options[] = "hg:f:c:b:t:C:G:r:i:";
+
 	struct it950x_dev dev = {
-#if 0
 		.gain = -10,
 		.frequency_khz = 794000, /* Channel 68 */
 		.bandwidth_hz = 8000,
@@ -1338,21 +1407,26 @@ int main(void)
 		.guard_interval = IT950X_GUARD_INTERVAL_1_4,
 		.code_rate_hp = IT950X_FEC_2_3,
 		.cell_id = 0,
-#else
-		/* Test */
-		.gain = -10,
-		.frequency_khz = 578000, /* Channel 32 */
-		.bandwidth_hz = 8000,
-		.transmission_mode = IT950X_TRANSMISSION_MODE_8K,
-		.constellation = IT950X_CONSTELLATION_QAM_16,
-		.guard_interval = IT950X_GUARD_INTERVAL_1_4,
-		.code_rate_hp = IT950X_FEC_2_3,
-		.cell_id = 0,
-#endif
 	};
 	libusb_context *ctx = NULL;
 	const char *msg = NULL;
-	int r;
+	int r, opt, optindex;
+
+	optindex = 0;
+	while ((opt=getopt_long(argc, argv, short_options, long_options, &optindex)) > 0) {
+		switch (opt) {
+		case 'h': usage(); return 0;
+		case 'g': dev.gain = atoi(optarg); break;
+		case 'f': dev.frequency_khz = atoi(optarg); break;
+		case 'c': dev.frequency_khz = 306000+8000*atoi(optarg); break;
+		case 'b': dev.bandwidth_hz = atoi(optarg); break;
+		case 't': dev.transmission_mode = lookup_map(map_transmission_mode, ARRAY_SIZE(map_transmission_mode), optarg); break;
+		case 'C': dev.constellation = lookup_map(map_constellation, ARRAY_SIZE(map_constellation), optarg); break;
+		case 'G': dev.guard_interval = lookup_map(map_guard_interval, ARRAY_SIZE(map_guard_interval), optarg); break;
+		case 'r': dev.code_rate_hp = lookup_map(map_fec, ARRAY_SIZE(map_fec), optarg); break;
+		default: return usage();
+		}
+	}
 
 	r = libusb_init(&ctx);
 	if (r != LIBUSB_SUCCESS) {
