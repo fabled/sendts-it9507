@@ -1,8 +1,8 @@
 LIBUSB_CFLAGS += -Wall $(shell pkg-config --cflags libusb-1.0)
 LIBUSB_LDFLAGS += $(shell pkg-config --libs libusb-1.0)
-CFLAGS = -g -O3 #-Wall
+CFLAGS = -g -O3 -Wall
 
-TOOLS = sendts-it9507
+TOOLS = sendts-it9507 mpegts-switch
 
 all: $(TOOLS)
 
