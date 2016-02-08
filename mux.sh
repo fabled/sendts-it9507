@@ -7,6 +7,9 @@
 # and -mpegts_service_type advanced_codec_digital_hdtv
 # may need to be removed or replaced accordingly.
 
+# for live streams: remove the -re flag as the live stream
+# should drive the clocking.
+
 network_name="MyNetwork"
 channel_name="MyChannel"
 usb_device=0
@@ -19,7 +22,7 @@ MODULATION="-d $usb_device -c $dvb_channel --gain -25 --guard-interval 1/4 --cod
 MUXRATE="$(sendts-it9507 --muxrate $MODULATION)"
 
 ffmpeg \
-	-i "$1" \
+	-re -i "$1" \
 	-f mpegts \
 	-c:v copy -bsf:v h264_mp4toannexb \
 	-c:a copy \
